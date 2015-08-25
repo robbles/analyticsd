@@ -1,0 +1,21 @@
+{
+	"ImportPath": "ad_server",
+	"GoVersion": "go1.4.2",
+	"Deps": [
+		{
+			"ImportPath": "github.com/go-sql-driver/mysql",
+			"Comment": "v1.2-112-gfb72997",
+			"Rev": "fb7299726d2e68745a8805b14f2ff44b5c2cfa84"
+		},
+		{
+			"ImportPath": "github.com/gocraft/web",
+			"Comment": "v1.1-16-g934a096",
+			"Rev": "934a096ff6918ed5d4667075794a8d18a88c1576"
+		},
+		{
+			"ImportPath": "github.com/jmoiron/sqlx",
+			"Comment": "sqlx-v1.1-18-g56b62f2",
+			"Rev": "56b62f29e9936b8fc0db14ed01297f88ba518333"
+		}
+	]
+}
