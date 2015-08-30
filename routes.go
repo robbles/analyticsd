@@ -84,7 +84,14 @@ func (c *RequestContext) TrackQueryParams(res web.ResponseWriter, req *web.Reque
 	if err := req.ParseForm(); err != nil {
 		returnError(JSON{"error": "failed to parse request"}, 400)
 	}
-	result, err := json.Marshal(req.Form)
+
+	// Flatten query params using only the first value for each key
+	data := map[string]string{}
+	for key, value := range req.Form {
+		data[key] = value[0]
+	}
+
+	result, err := json.Marshal(data)
 	if err != nil {
 		returnError(JSON{"error": "failed to marshal JSON"}, 500)
 	}
