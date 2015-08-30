@@ -1,11 +1,14 @@
 {
-	"ImportPath": "ad_server",
-	"GoVersion": "go1.4.2",
+	"ImportPath": "github.com/robbles/analyticsd",
+	"GoVersion": "go1.5",
 	"Deps": [
 		{
-			"ImportPath": "github.com/go-sql-driver/mysql",
-			"Comment": "v1.2-112-gfb72997",
-			"Rev": "fb7299726d2e68745a8805b14f2ff44b5c2cfa84"
+			"ImportPath": "github.com/crowdmob/goamz/aws",
+			"Rev": "3a06871fe9fc0281ca90f3a7d97258d042ed64c0"
+		},
+		{
+			"ImportPath": "github.com/crowdmob/goamz/s3",
+			"Rev": "3a06871fe9fc0281ca90f3a7d97258d042ed64c0"
 		},
 		{
 			"ImportPath": "github.com/gocraft/web",
@@ -13,9 +16,28 @@
 			"Rev": "934a096ff6918ed5d4667075794a8d18a88c1576"
 		},
 		{
-			"ImportPath": "github.com/jmoiron/sqlx",
-			"Comment": "sqlx-v1.1-18-g56b62f2",
-			"Rev": "56b62f29e9936b8fc0db14ed01297f88ba518333"
+			"ImportPath": "github.com/namsral/flag",
+			"Rev": "bd57b3fc9ada8271ff812ba54f938fe72749d969"
+		},
+		{
+			"ImportPath": "github.com/twitchscience/aws_utils/common",
+			"Rev": "8f165c8cd9cf6cfada7b20d78fd483a795cf1040"
+		},
+		{
+			"ImportPath": "github.com/twitchscience/aws_utils/uploader",
+			"Rev": "8f165c8cd9cf6cfada7b20d78fd483a795cf1040"
+		},
+		{
+			"ImportPath": "github.com/twitchscience/gologging/file_writer",
+			"Rev": "b639281d8ad36060df1af45adc87b4521d6002d0"
+		},
+		{
+			"ImportPath": "github.com/twitchscience/gologging/gologging",
+			"Rev": "b639281d8ad36060df1af45adc87b4521d6002d0"
+		},
+		{
+			"ImportPath": "github.com/twitchscience/gologging/key_name_generator",
+			"Rev": "b639281d8ad36060df1af45adc87b4521d6002d0"
 		}
 	]
 }
