@@ -1,7 +1,9 @@
 package main
 
 import (
-	"fmt"
+	"encoding/base64"
+	"encoding/json"
+	"strings"
 
 	"github.com/gocraft/web"
 )
@@ -11,7 +13,7 @@ type RequestContext struct {
 	app *AppContext
 }
 
-func setupRoutes(app *AppContext) *web.Router {
+func (app *AppContext) setupRoutes() *web.Router {
 
 	/* Create a new router. RequestContext instance is only passed to tell it
 	   what type of context object to pass to the handlers (it's not reused) */
@@ -30,19 +32,67 @@ func setupRoutes(app *AppContext) *web.Router {
 
 	// Map routes
 	router = router.
-		Get("/", (*RequestContext).Index).
-		Get("/error/", (*RequestContext).Error)
+		Get("/track/", (*RequestContext).TrackQueryParams).
+		Get("/track.gif", (*RequestContext).TrackQueryParams).
+		Post("/track/", (*RequestContext).TrackPostedJSON).
+		Get("/track/base64/", (*RequestContext).TrackEncodedJSON)
 
 	return router
 }
 
-func (c *RequestContext) Index(res web.ResponseWriter, req *web.Request) {
-	c.app.logger.Println("got a request!")
-	fmt.Fprintf(res, "%#v", c.app.config)
+func (c *RequestContext) TrackEncodedJSON(res web.ResponseWriter, req *web.Request) {
+	param := req.FormValue("data")
+	if param == "" {
+		returnError(JSON{"error": "data parameter must be passed"}, 400)
+	}
+
+	var data map[string]interface{}
+
+	// Decode base64-encoded data
+	decoder := base64.NewDecoder(base64.StdEncoding, strings.NewReader(param))
+
+	if err := json.NewDecoder(decoder).Decode(&data); err != nil {
+		returnError(JSON{
+			"error": "failed to parse data parameter, should be base64-encoded JSON",
+		}, 400)
+	}
+
+	result, err := json.Marshal(data)
+	if err != nil {
+		returnError(JSON{"error": "failed to marshal JSON"}, 500)
+	}
+
+	c.app.Logf(string(result))
 }
 
-func (c *RequestContext) Error(res web.ResponseWriter, req *web.Request) {
-	returnError(JSON{
-		"error": "there was an error",
-	}, 400)
+func (c *RequestContext) TrackPostedJSON(res web.ResponseWriter, req *web.Request) {
+	var data map[string]interface{}
+
+	if err := json.NewDecoder(req.Body).Decode(&data); err != nil {
+		returnError(JSON{"error": "failed to parse JSON body"}, 400)
+	}
+
+	result, err := json.Marshal(data)
+	if err != nil {
+		returnError(JSON{"error": "failed to marshal JSON"}, 500)
+	}
+
+	c.app.Logf(string(result))
+}
+
+func (c *RequestContext) TrackQueryParams(res web.ResponseWriter, req *web.Request) {
+	if err := req.ParseForm(); err != nil {
+		returnError(JSON{"error": "failed to parse request"}, 400)
+	}
+	result, err := json.Marshal(req.Form)
+	if err != nil {
+		returnError(JSON{"error": "failed to marshal JSON"}, 500)
+	}
+
+	c.app.Logf(string(result))
+
+	if strings.HasSuffix(req.URL.Path, ".gif") {
+		res.Header().Set("Content-Type", "image/gif")
+		res.Write(EMPTY_GIF)
+	}
 }
