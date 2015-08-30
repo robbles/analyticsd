@@ -48,7 +48,7 @@ func main() {
 	flag.StringVar(&config.key_prefix, "key-prefix", "", "Prefix for S3 keys")
 	flag.Parse()
 
-	app.logger = log.New(os.Stderr, "[metrics] ", log.LstdFlags|log.Lshortfile)
+	app.logger = log.New(os.Stderr, "[analyticsd] ", log.LstdFlags|log.Lshortfile)
 
 	s3log, err := app.setupS3Logger()
 	if err != nil {

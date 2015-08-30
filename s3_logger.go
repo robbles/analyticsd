@@ -15,7 +15,7 @@ import (
 
 const maxLogLines = 1000
 const maxLogAge = time.Minute
-const serviceName = "metrics"
+const serviceName = "analyticsd"
 
 func (app *AppContext) setupS3Logger() (*gologging.UploadLogger, error) {
 	auth, err := aws.EnvAuth()
