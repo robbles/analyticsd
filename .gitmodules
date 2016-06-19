@@ -1,0 +1,13 @@
+[submodule "vendor/github.com/namsral/flag"]
+	path = vendor/github.com/namsral/flag
+	url = https://github.com/namsral/flag
+	branch = bd57b3fc9ada8271ff812ba54f938fe72749d969
+[submodule "vendor/github.com/crowdmob/goamz"]
+	path = vendor/github.com/crowdmob/goamz
+	url = https://github.com/crowdmob/goamz
+[submodule "vendor/github.com/twitchscience/aws_utils"]
+	path = vendor/github.com/twitchscience/aws_utils
+	url = https://github.com/twitchscience/aws_utils
+[submodule "vendor/github.com/twitchscience/gologging"]
+	path = vendor/github.com/twitchscience/gologging
+	url = https://github.com/twitchscience/gologging
