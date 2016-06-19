@@ -3,86 +3,73 @@ package main
 import (
 	"encoding/base64"
 	"encoding/json"
+	"io/ioutil"
+	"net"
+	"net/http"
 	"strings"
-
-	"github.com/gocraft/web"
 )
 
-// Holds per-request application state, e.g. from middleware
-type RequestContext struct {
-	app *AppContext
-}
+const EMPTY_GIF = "GIF89a\x01\x00\x01\x00\x80\x00\x00\xff\xff\xff\x00\x00\x00!\xf9\x04\x00\x00\x00\x00\x00,\x00\x00\x00\x00\x01\x00\x01\x00\x00\x02\x02D\x01\x00;"
 
-func (app *AppContext) setupRoutes() *web.Router {
+func (app *AppContext) setupRoutes() http.Handler {
 
-	/* Create a new router. RequestContext instance is only passed to tell it
-	   what type of context object to pass to the handlers (it's not reused) */
-	router := web.New(RequestContext{})
-
-	// Log all requests
-	router.Middleware(web.LoggerMiddleware)
-
-	// Use a closure to set RequestContext.app in every request
-	router.Middleware(func(c *RequestContext, res web.ResponseWriter, req *web.Request, next web.NextMiddlewareFunc) {
-		c.app = app
-		next(res, req)
-	})
-
-	router.Middleware(APIErrorMiddleware)
+	/* Create a new router. */
+	router := http.NewServeMux()
 
 	// Map routes
-	router = router.
-		Get("/track/", (*RequestContext).TrackQueryParams).
-		Get("/track.gif", (*RequestContext).TrackQueryParams).
-		Post("/track/", (*RequestContext).TrackPostedJSON).
-		Get("/track/base64/", (*RequestContext).TrackEncodedJSON)
+	router.HandleFunc("/track.gif", app.TrackQueryParams)
+	router.HandleFunc("/track/", app.TrackPostedJSON)
+	router.HandleFunc("/track/base64/", app.TrackEncodedJSON)
+
+	// TODO: setup expvar metrics to replace request stats
+	// TODO: use an expvar metric for logging uploads, failures, etc.
+	// TODO: expose expvar handler through the router
 
 	return router
 }
 
-func (c *RequestContext) TrackEncodedJSON(res web.ResponseWriter, req *web.Request) {
+// TrackQueryParams decodes the "data" query parameter as base64, and logs the
+// resulting data directly to the S3 logger.
+func (app *AppContext) TrackEncodedJSON(res http.ResponseWriter, req *http.Request) {
+	var data []byte
+	var err error
+
 	param := req.FormValue("data")
 	if param == "" {
-		returnError(JSON{"error": "data parameter must be passed"}, 400)
+		app.clientError(res, "Error: missing parameter data")
+		return
 	}
-
-	var data map[string]interface{}
 
 	// Decode base64-encoded data
 	decoder := base64.NewDecoder(base64.StdEncoding, strings.NewReader(param))
-
-	if err := json.NewDecoder(decoder).Decode(&data); err != nil {
-		returnError(JSON{
-			"error": "failed to parse data parameter, should be base64-encoded JSON",
-		}, 400)
+	if data, err = ioutil.ReadAll(decoder); err != nil {
+		app.clientError(res, "Failed to parse base64-encoded data")
+		return
 	}
 
-	result, err := json.Marshal(data)
-	if err != nil {
-		returnError(JSON{"error": "failed to marshal JSON"}, 500)
-	}
-
-	c.app.Logf(string(result))
+	app.Logf(string(data))
 }
 
-func (c *RequestContext) TrackPostedJSON(res web.ResponseWriter, req *web.Request) {
-	var data map[string]interface{}
+// TrackPostedJSON logs the body of the request directly to the S3 logger.
+func (app *AppContext) TrackPostedJSON(res http.ResponseWriter, req *http.Request) {
+	var body []byte
+	var err error
 
-	if err := json.NewDecoder(req.Body).Decode(&data); err != nil {
-		returnError(JSON{"error": "failed to parse JSON body"}, 400)
+	defer req.Body.Close()
+	if body, err = ioutil.ReadAll(req.Body); err != nil {
+		res.WriteHeader(400)
+		return
 	}
 
-	result, err := json.Marshal(data)
-	if err != nil {
-		returnError(JSON{"error": "failed to marshal JSON"}, 500)
-	}
-
-	c.app.Logf(string(result))
+	app.Logf(string(body))
 }
 
-func (c *RequestContext) TrackQueryParams(res web.ResponseWriter, req *web.Request) {
+// TrackQueryParams parses the request parameters from the query and serializes
+// the result into JSON, then logs a message to the S3 logger.
+func (app *AppContext) TrackQueryParams(res http.ResponseWriter, req *http.Request) {
 	if err := req.ParseForm(); err != nil {
-		returnError(JSON{"error": "failed to parse request"}, 400)
+		res.WriteHeader(400)
+		return
 	}
 
 	// Flatten query params using only the first value for each key
@@ -93,13 +80,31 @@ func (c *RequestContext) TrackQueryParams(res web.ResponseWriter, req *web.Reque
 
 	result, err := json.Marshal(data)
 	if err != nil {
-		returnError(JSON{"error": "failed to marshal JSON"}, 500)
+		res.WriteHeader(400)
+		return
 	}
 
-	c.app.Logf(string(result))
+	app.Logf(string(result))
 
 	if strings.HasSuffix(req.URL.Path, ".gif") {
 		res.Header().Set("Content-Type", "image/gif")
-		res.Write(EMPTY_GIF)
+		res.Write([]byte(EMPTY_GIF))
 	}
+}
+
+// clientError writes a HTTP client error status code and textual response to the ResponseWriter.
+func (app *AppContext) clientError(res http.ResponseWriter, message string) {
+	res.WriteHeader(400)
+	res.Write([]byte(message))
+}
+
+// isLocalRequest returns true if the request came from localhost (127.0.0.1).
+func isLocalRequest(req *http.Request) bool {
+	remote_ip := net.ParseIP(strings.Split(req.RemoteAddr, ":")[0])
+
+	if remote_ip.String() != "127.0.0.1" {
+		return false
+	}
+
+	return true
 }

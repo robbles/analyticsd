@@ -13,11 +13,9 @@ import (
 	keygen "github.com/twitchscience/gologging/key_name_generator"
 )
 
-const maxLogLines = 1000
-const maxLogAge = time.Minute
 const serviceName = "analyticsd"
 
-func (app *AppContext) setupS3Logger() (*gologging.UploadLogger, error) {
+func setupS3Logger(config AppConfig) (*gologging.UploadLogger, error) {
 	auth, err := aws.EnvAuth()
 
 	if err != nil {
@@ -26,16 +24,19 @@ func (app *AppContext) setupS3Logger() (*gologging.UploadLogger, error) {
 
 	awsConnection := s3.New(
 		auth,
-		getAWSRegion(app.config.aws_region),
+		getAWSRegion(config.aws_region),
 	)
-	bucket := awsConnection.Bucket(app.config.bucket)
+	bucket := awsConnection.Bucket(config.bucket)
 	instanceInfo := keygen.BuildInstanceInfo(
 		&keygen.EnvInstanceFetcher{},
 		serviceName,
-		app.config.logging_dir,
+		config.logging_dir,
 	)
 
-	rotateCoordinator := gologging.NewRotateCoordinator(maxLogLines, maxLogAge)
+	rotateCoordinator := gologging.NewRotateCoordinator(
+		config.max_log_lines,
+		config.max_log_age,
+	)
 
 	return gologging.StartS3Logger(
 		rotateCoordinator,
@@ -45,11 +46,11 @@ func (app *AppContext) setupS3Logger() (*gologging.UploadLogger, error) {
 			Bucket: bucket,
 			KeyNameGenerator: &KeyNameGenerator{
 				Info:   instanceInfo,
-				Prefix: app.config.key_prefix,
+				Prefix: config.key_prefix,
 			},
 		},
 		&stderrNotifier{},
-		app.config.num_workers,
+		config.num_workers,
 	)
 }
 
