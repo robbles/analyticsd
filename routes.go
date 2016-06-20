@@ -7,6 +7,7 @@ import (
 	"net"
 	"net/http"
 	"strings"
+	"time"
 )
 
 const EMPTY_GIF = "GIF89a\x01\x00\x01\x00\x80\x00\x00\xff\xff\xff\x00\x00\x00!\xf9\x04\x00\x00\x00\x00\x00,\x00\x00\x00\x00\x01\x00\x01\x00\x00\x02\x02D\x01\x00;"
@@ -17,12 +18,19 @@ func (app *AppContext) setupRoutes() http.Handler {
 	router := http.NewServeMux()
 
 	// Map routes
-	router.HandleFunc("/track.gif", app.TrackEncodedQueryParam)
-	router.HandleFunc("/", app.Track)
+	router.Handle("/", app.Middleware(app.Track))
+	router.Handle("/track.gif", app.Middleware(app.TrackEncodedQueryParam))
 
-	// TODO: setup expvar metrics to replace request stats
+	// Serve global handlers (i.e. expvar) only to local
+	router.HandleFunc("/debug/vars", func(res http.ResponseWriter, req *http.Request) {
+		if !isLocalRequest(req) {
+			res.WriteHeader(http.StatusForbidden)
+			return
+		}
+		http.DefaultServeMux.ServeHTTP(res, req)
+	})
+
 	// TODO: use an expvar metric for logging uploads, failures, etc.
-	// TODO: expose expvar handler through the router
 
 	return router
 }
@@ -111,6 +119,24 @@ func (app *AppContext) TrackEncodedQueryParam(res http.ResponseWriter, req *http
 	res.Write([]byte(EMPTY_GIF))
 }
 
+// Middleware wraps a HandlerFunc with a middleware handler for metrics, panic
+// recovery, and logging.
+func (app *AppContext) Middleware(handler http.HandlerFunc) http.Handler {
+	return http.HandlerFunc(func(res http.ResponseWriter, req *http.Request) {
+
+		// Record response time after the handler returns
+		defer func(begin time.Time) {
+			app.logger.Print("logging response time")
+			app.metrics.ResponseTime.Observe(time.Since(begin))
+		}(time.Now())
+
+		// Record total number of requests
+		app.metrics.RequestCount.Add(1)
+
+		handler(res, req)
+	})
+}
+
 // clientError writes a HTTP client error status code and textual response to the ResponseWriter.
 func (app *AppContext) clientError(res http.ResponseWriter, message string) {
 	res.WriteHeader(http.StatusBadRequest)
@@ -119,11 +145,20 @@ func (app *AppContext) clientError(res http.ResponseWriter, message string) {
 
 // isLocalRequest returns true if the request came from localhost (127.0.0.1).
 func isLocalRequest(req *http.Request) bool {
-	remote_ip := net.ParseIP(strings.Split(req.RemoteAddr, ":")[0])
-
-	if remote_ip.String() != "127.0.0.1" {
+	host, _, err := net.SplitHostPort(req.RemoteAddr)
+	if err != nil {
 		return false
 	}
 
-	return true
+	switch host {
+
+	case "127.0.0.1":
+		return true
+
+	case "::1":
+		return true
+
+	default:
+		return false
+	}
 }

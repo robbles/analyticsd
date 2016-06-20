@@ -27,6 +27,7 @@ type AppConfig struct {
 	max_log_age   time.Duration
 }
 
+// Holds application-level state
 type AppContext struct {
 	config *AppConfig
 
@@ -35,6 +36,9 @@ type AppContext struct {
 
 	// S3 event logger
 	s3log *gologging.UploadLogger
+
+	// application metrics exposed through expvar
+	metrics Metrics
 }
 
 func main() {
@@ -60,9 +64,10 @@ func main() {
 	}
 
 	app := AppContext{
-		config: &config,
-		logger: logger,
-		s3log:  s3log,
+		config:  &config,
+		logger:  logger,
+		s3log:   s3log,
+		metrics: NewMetricsExpvar(),
 	}
 
 	// Configure routing for HTTP server
