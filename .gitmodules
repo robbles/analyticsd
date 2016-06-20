@@ -14,3 +14,6 @@
 [submodule "vendor/github.com/codahale/hdrhistogram"]
 	path = vendor/github.com/codahale/hdrhistogram
 	url = https://github.com/codahale/hdrhistogram
+[submodule "vendor/github.com/go-kit/kit"]
+	path = vendor/github.com/go-kit/kit
+	url = https://github.com/go-kit/kit
