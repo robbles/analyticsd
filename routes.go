@@ -41,31 +41,6 @@ func (app *AppContext) Track(res http.ResponseWriter, req *http.Request) {
 	}
 }
 
-// TrackEncodedQueryParam decodes the "data" query parameter as base64, and
-// logs the resulting data directly to the S3 logger.
-//
-// This allows passing JSON-encoded data safely from the browser, or baking a
-// request into an image URL.
-func (app *AppContext) TrackEncodedQueryParam(res http.ResponseWriter, req *http.Request) {
-	var data []byte
-	var err error
-
-	param := req.FormValue("data")
-	if param == "" {
-		app.clientError(res, "Error: missing parameter data")
-		return
-	}
-
-	// Decode base64-encoded data
-	decoder := base64.NewDecoder(base64.StdEncoding, strings.NewReader(param))
-	if data, err = ioutil.ReadAll(decoder); err != nil {
-		app.clientError(res, "Failed to parse base64-encoded data")
-		return
-	}
-
-	app.Logf(string(data))
-}
-
 // TrackPostedBody logs the body of the request directly to the S3 logger.
 func (app *AppContext) TrackPostedBody(res http.ResponseWriter, req *http.Request) {
 	var body []byte
@@ -78,6 +53,7 @@ func (app *AppContext) TrackPostedBody(res http.ResponseWriter, req *http.Reques
 	}
 
 	app.Logf(string(body))
+	res.WriteHeader(http.StatusNoContent)
 }
 
 // TrackQueryParams parses the request parameters from the query and serializes
@@ -102,10 +78,37 @@ func (app *AppContext) TrackQueryParams(res http.ResponseWriter, req *http.Reque
 
 	app.Logf(string(result))
 
-	if strings.HasSuffix(req.URL.Path, ".gif") {
-		res.Header().Set("Content-Type", "image/gif")
-		res.Write([]byte(EMPTY_GIF))
+	res.WriteHeader(http.StatusNoContent)
+}
+
+// TrackEncodedQueryParam decodes the "data" query parameter as base64, and
+// logs the resulting data directly to the S3 logger.
+//
+// This allows passing JSON-encoded data safely from the browser, or baking a
+// request into an image URL.
+func (app *AppContext) TrackEncodedQueryParam(res http.ResponseWriter, req *http.Request) {
+	var data []byte
+	var err error
+
+	param := req.FormValue("data")
+	if param == "" {
+		app.clientError(res, "Error: missing parameter data")
+		return
 	}
+
+	// Decode base64-encoded data
+	decoder := base64.NewDecoder(base64.StdEncoding, strings.NewReader(param))
+	if data, err = ioutil.ReadAll(decoder); err != nil {
+		app.clientError(res, "Failed to parse base64-encoded data")
+		return
+	}
+
+	app.Logf(string(data))
+
+	// Return empty GIF
+	res.Header().Set("Content-Type", "image/gif")
+	res.WriteHeader(http.StatusOK)
+	res.Write([]byte(EMPTY_GIF))
 }
 
 // clientError writes a HTTP client error status code and textual response to the ResponseWriter.
