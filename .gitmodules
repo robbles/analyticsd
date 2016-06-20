@@ -1,7 +1,3 @@
-[submodule "vendor/github.com/namsral/flag"]
-	path = vendor/github.com/namsral/flag
-	url = https://github.com/namsral/flag
-	branch = bd57b3fc9ada8271ff812ba54f938fe72749d969
 [submodule "vendor/github.com/crowdmob/goamz"]
 	path = vendor/github.com/crowdmob/goamz
 	url = https://github.com/crowdmob/goamz

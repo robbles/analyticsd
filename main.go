@@ -1,13 +1,13 @@
 package main
 
 import (
+	"flag"
 	"fmt"
 	"log"
 	"net/http"
 	"os"
 	"time"
 
-	"github.com/namsral/flag"
 	"github.com/twitchscience/gologging/gologging"
 )
 
