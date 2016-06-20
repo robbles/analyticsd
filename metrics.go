@@ -14,6 +14,8 @@ var sigfigs = 3
 type Metrics struct {
 	RequestCount metrics.Counter
 	ResponseTime metrics.TimeHistogram
+	Uploads      metrics.Counter
+	UploadErrors metrics.Counter
 }
 
 // NewMetricsExpvar initializes and returns a Metrics exposed over the expvar system.
@@ -24,5 +26,7 @@ func NewMetricsExpvar() Metrics {
 			time.Microsecond,
 			expvar.NewHistogram("response_time", 0, int64(time.Second), sigfigs, quantiles...),
 		),
+		Uploads:      expvar.NewCounter("uploads"),
+		UploadErrors: expvar.NewCounter("upload_errors"),
 	}
 }

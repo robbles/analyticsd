@@ -4,6 +4,9 @@ import (
 	"crypto/rand"
 	"fmt"
 	"log"
+	"os"
+	"os/signal"
+	"syscall"
 	"time"
 
 	"github.com/crowdmob/goamz/aws"
@@ -15,7 +18,7 @@ import (
 
 const serviceName = "analyticsd"
 
-func setupS3Logger(config AppConfig) (*gologging.UploadLogger, error) {
+func (app *AppContext) setupS3Logger() (err error) {
 	auth, err := aws.EnvAuth()
 
 	if err != nil {
@@ -24,34 +27,56 @@ func setupS3Logger(config AppConfig) (*gologging.UploadLogger, error) {
 
 	awsConnection := s3.New(
 		auth,
-		getAWSRegion(config.aws_region),
+		getAWSRegion(app.config.aws_region),
 	)
-	bucket := awsConnection.Bucket(config.bucket)
+	bucket := awsConnection.Bucket(app.config.bucket)
+
 	instanceInfo := keygen.BuildInstanceInfo(
 		&keygen.EnvInstanceFetcher{},
 		serviceName,
-		config.logging_dir,
+		app.config.logging_dir,
 	)
 
 	rotateCoordinator := gologging.NewRotateCoordinator(
-		config.max_log_lines,
-		config.max_log_age,
+		app.config.max_log_lines,
+		app.config.max_log_age,
 	)
 
-	return gologging.StartS3Logger(
+	metricsLogger := MetricsLogger{app.metrics}
+
+	app.s3log, err = gologging.StartS3Logger(
 		rotateCoordinator,
 		instanceInfo,
-		&stderrNotifier{},
+		&metricsLogger,
 		&uploader.S3UploaderBuilder{
 			Bucket: bucket,
 			KeyNameGenerator: &KeyNameGenerator{
 				Info:   instanceInfo,
-				Prefix: config.key_prefix,
+				Prefix: app.config.key_prefix,
 			},
 		},
-		&stderrNotifier{},
-		config.num_workers,
+		&metricsLogger,
+		app.config.num_workers,
 	)
+	if err != nil {
+		return
+	}
+
+	// Make sure logger is flushed when shutdown signal is received
+	sigc := make(chan os.Signal, 1)
+	signal.Notify(sigc,
+		syscall.SIGHUP,
+		syscall.SIGINT,
+		syscall.SIGTERM,
+		syscall.SIGQUIT)
+	go func() {
+		<-sigc
+		log.Println("interrupted, closing logger...")
+		app.s3log.Close()
+		os.Exit(0)
+	}()
+
+	return nil
 }
 
 func (app *AppContext) Logf(fmt string, args ...interface{}) {
@@ -96,17 +121,19 @@ func (gen *KeyNameGenerator) GetKeyName(filename string) string {
 }
 
 // Logging of uploads and errors
-type stderrNotifier struct{}
+type MetricsLogger struct {
+	Metrics
+}
 
 // Called when a log file is successfully uploaded to S3
-func (s *stderrNotifier) SendMessage(r *uploader.UploadReceipt) error {
-	// TODO: report statsd metric
-	log.Println("uploaded to S3 key", r.KeyName)
+func (s *MetricsLogger) SendMessage(r *uploader.UploadReceipt) error {
+	log.Println("Uploaded to S3 key", r.KeyName)
+	s.Uploads.Add(1)
 	return nil
 }
 
 // Called when an error occurs uploading log files
-func (s *stderrNotifier) SendError(e error) {
-	// TODO: use statsd or SQS here
+func (s *MetricsLogger) SendError(e error) {
 	log.Printf("error uploading logs to S3: %T %s", e, e)
+	s.UploadErrors.Add(1)
 }

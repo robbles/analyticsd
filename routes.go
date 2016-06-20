@@ -30,8 +30,6 @@ func (app *AppContext) setupRoutes() http.Handler {
 		http.DefaultServeMux.ServeHTTP(res, req)
 	})
 
-	// TODO: use an expvar metric for logging uploads, failures, etc.
-
 	return router
 }
 
@@ -126,7 +124,6 @@ func (app *AppContext) Middleware(handler http.HandlerFunc) http.Handler {
 
 		// Record response time after the handler returns
 		defer func(begin time.Time) {
-			app.logger.Print("logging response time")
 			app.metrics.ResponseTime.Observe(time.Since(begin))
 		}(time.Now())
 

@@ -5,8 +5,6 @@ import (
 	"log"
 	"net/http"
 	"os"
-	"os/signal"
-	"syscall"
 	"time"
 
 	"github.com/namsral/flag"
@@ -52,40 +50,25 @@ func main() {
 	flag.StringVar(&config.aws_region, "aws-region", "us-west-1", "AWS region")
 	flag.StringVar(&config.bucket, "bucket", "logs", "S3 bucket for storing logs")
 	flag.StringVar(&config.key_prefix, "key-prefix", "", "Prefix for S3 keys")
-	flag.IntVar(&config.max_log_lines, "max-log-lines", 1000, "Maximum number of lines to log before rotating to S3")
+	flag.IntVar(&config.max_log_lines, "max-log-lines", 100000, "Maximum number of lines to log before rotating to S3")
 	flag.DurationVar(&config.max_log_age, "max-log-age", time.Minute, "Maximum age logs can reach before rotating to S3")
 	flag.Parse()
 
 	logger := log.New(os.Stderr, "[analyticsd] ", log.LstdFlags|log.Lshortfile)
 
-	s3log, err := setupS3Logger(config)
-	if err != nil {
-		logger.Fatal("failed starting S3 logger", err)
-	}
-
 	app := AppContext{
 		config:  &config,
 		logger:  logger,
-		s3log:   s3log,
 		metrics: NewMetricsExpvar(),
 	}
 
 	// Configure routing for HTTP server
 	router := app.setupRoutes()
 
-	// Make sure logger is flushed when shutdown signal is received
-	sigc := make(chan os.Signal, 1)
-	signal.Notify(sigc,
-		syscall.SIGHUP,
-		syscall.SIGINT,
-		syscall.SIGTERM,
-		syscall.SIGQUIT)
-	go func() {
-		<-sigc
-		log.Println("interrupted, closing logger...")
-		s3log.Close()
-		os.Exit(0)
-	}()
+	// Configure the S3 logger
+	if err := app.setupS3Logger(); err != nil {
+		logger.Fatal("failed starting S3 logger", err)
+	}
 
 	// Start the server!
 	hostname := fmt.Sprintf("%s:%d", config.host, config.port)
