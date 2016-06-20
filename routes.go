@@ -17,9 +17,8 @@ func (app *AppContext) setupRoutes() http.Handler {
 	router := http.NewServeMux()
 
 	// Map routes
-	router.HandleFunc("/track.gif", app.TrackQueryParams)
-	router.HandleFunc("/track/", app.TrackPostedJSON)
-	router.HandleFunc("/track/base64/", app.TrackEncodedJSON)
+	router.HandleFunc("/track.gif", app.TrackEncodedQueryParam)
+	router.HandleFunc("/", app.Track)
 
 	// TODO: setup expvar metrics to replace request stats
 	// TODO: use an expvar metric for logging uploads, failures, etc.
@@ -28,9 +27,26 @@ func (app *AppContext) setupRoutes() http.Handler {
 	return router
 }
 
-// TrackQueryParams decodes the "data" query parameter as base64, and logs the
-// resulting data directly to the S3 logger.
-func (app *AppContext) TrackEncodedJSON(res http.ResponseWriter, req *http.Request) {
+// Track routes to the appropriate method based on the incoming request's content
+func (app *AppContext) Track(res http.ResponseWriter, req *http.Request) {
+	switch {
+	case req.Method == "POST":
+		app.TrackPostedBody(res, req)
+
+	case req.Method == "GET":
+		app.TrackQueryParams(res, req)
+
+	default:
+		res.WriteHeader(http.StatusMethodNotAllowed)
+	}
+}
+
+// TrackEncodedQueryParam decodes the "data" query parameter as base64, and
+// logs the resulting data directly to the S3 logger.
+//
+// This allows passing JSON-encoded data safely from the browser, or baking a
+// request into an image URL.
+func (app *AppContext) TrackEncodedQueryParam(res http.ResponseWriter, req *http.Request) {
 	var data []byte
 	var err error
 
@@ -50,14 +66,14 @@ func (app *AppContext) TrackEncodedJSON(res http.ResponseWriter, req *http.Reque
 	app.Logf(string(data))
 }
 
-// TrackPostedJSON logs the body of the request directly to the S3 logger.
-func (app *AppContext) TrackPostedJSON(res http.ResponseWriter, req *http.Request) {
+// TrackPostedBody logs the body of the request directly to the S3 logger.
+func (app *AppContext) TrackPostedBody(res http.ResponseWriter, req *http.Request) {
 	var body []byte
 	var err error
 
 	defer req.Body.Close()
 	if body, err = ioutil.ReadAll(req.Body); err != nil {
-		res.WriteHeader(400)
+		res.WriteHeader(http.StatusBadRequest)
 		return
 	}
 
@@ -68,7 +84,7 @@ func (app *AppContext) TrackPostedJSON(res http.ResponseWriter, req *http.Reques
 // the result into JSON, then logs a message to the S3 logger.
 func (app *AppContext) TrackQueryParams(res http.ResponseWriter, req *http.Request) {
 	if err := req.ParseForm(); err != nil {
-		res.WriteHeader(400)
+		res.WriteHeader(http.StatusBadRequest)
 		return
 	}
 
@@ -80,7 +96,7 @@ func (app *AppContext) TrackQueryParams(res http.ResponseWriter, req *http.Reque
 
 	result, err := json.Marshal(data)
 	if err != nil {
-		res.WriteHeader(400)
+		res.WriteHeader(http.StatusBadRequest)
 		return
 	}
 
@@ -94,7 +110,7 @@ func (app *AppContext) TrackQueryParams(res http.ResponseWriter, req *http.Reque
 
 // clientError writes a HTTP client error status code and textual response to the ResponseWriter.
 func (app *AppContext) clientError(res http.ResponseWriter, message string) {
-	res.WriteHeader(400)
+	res.WriteHeader(http.StatusBadRequest)
 	res.Write([]byte(message))
 }
 
