@@ -19,7 +19,7 @@ import (
 const serviceName = "analyticsd"
 
 func (app *AppContext) setupS3Logger() (err error) {
-	auth, err := aws.EnvAuth()
+	auth, err := aws.GetAuth("", "", "", time.Now())
 
 	if err != nil {
 		log.Fatalln("Failed to find AWS credentials in env")
